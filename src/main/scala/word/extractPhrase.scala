@@ -36,19 +36,20 @@ object extractPhrase extends App {
 
   //主函数：用于提取文本中的关键短语
   //输入：分析文本和所需关键词个数
+  //输出：关键词列表
   def extractPhrase(text: String, size: Int): util.List[ String ] = {
-    val phraseList: util.List[ String ] = new util.LinkedList()
-    val occurrence: Occurrence = new Occurrence()
-    val filterChain = CoreStopWordDictionary.FILTER
-    var sentence_iter1: util.Iterator[ util.List[ Term ] ] = null
-    var sentence_iter2: util.Iterator[ PairFrequency ] = null
-    var sentence: util.List[ Term ] = null
+    val phraseList: util.List[ String ] = new util.LinkedList()               //输出列表
+    val occurrence: Occurrence = new Occurrence()                             //用于存储关键字的一阶共现、二阶共现、三阶共现以及它们的频数
+    val filterChain = CoreStopWordDictionary.FILTER                           //停用词词典
+    var sentence_iter1: util.Iterator[ util.List[ Term ] ] = null            //迭代器1，用于存储经过分词处理的关键词
+    var sentence_iter2: util.Iterator[ PairFrequency ] = null                //迭代器2，用于计算过处理的关键词
+    var sentence: util.List[ Term ] = null                                   //存储当前所分句子
     sentence_iter1 = NotionalTokenizer.seg2sentence(text, filterChain).iterator
     while (sentence_iter1.hasNext) {
       sentence = sentence_iter1.next
-      occurrence.addAll(sentence)
+      occurrence.addAll(sentence)                                             //将所有分好的句子放到occurrence中
     }
-    compute(occurrence)
+    compute(occurrence)                                                       //计算occurrence中关键词的得分
     var phrase: PairFrequency = null
     val loop = new Breaks
     sentence_iter2 = occurrence.getPhraseByScore(occurrence.getBiGram).iterator
@@ -62,13 +63,15 @@ object extractPhrase extends App {
     phraseList
   }
 
+  //计算关键词之间的互信息、左右熵并打分
   def compute(occur: Occurrence) {
-    val entrySetPair: Set[ util.Map.Entry[ String, PairFrequency ] ] = occur.getBiGram
+    val entrySetPair: Set[util.Map.Entry[ String, PairFrequency ] ] = occur.getBiGram
     var total_mi = 0.0
     var total_le = 0.0
     var total_re = 0.0
 
     val sentence_iter3: util.Iterator[ util.Map.Entry[ String, PairFrequency ] ] = entrySetPair.iterator
+    var sentence_iter4: util.Iterator[ util.Map.Entry[ String, PairFrequency ] ] = entrySetPair.iterator
     var entry: util.Map.Entry[ String, PairFrequency ] = null
     var value: PairFrequency = null
     while (sentence_iter3.hasNext) {
@@ -81,8 +84,19 @@ object extractPhrase extends App {
       total_le += value.le
       total_re += value.re
     }
+    sentence_iter4 = entrySetPair.iterator
+    while ( {
+      sentence_iter4.hasNext
+    }) {
+      entry = sentence_iter4.next
+      value = entry.getValue
+      value.score = value.mi / total_mi + value.le / total_le + value.re / total_re
+
+      value.score *= entrySetPair.size.toDouble
+    }
   }
 
+  //互信息计算函数
   def computeMutualInformation(occur: Occurrence, pair: PairFrequency): Double = {
     val p: Double = Math.max(1.0E-10, pair.getValue.intValue.toDouble / occur.getTotalPair)
     val p1: Double = Math.max(1.0E-10, CoreDictionary.getTermFrequency(pair.first).toDouble)
@@ -90,31 +104,31 @@ object extractPhrase extends App {
     Math.log(p / p1 / p2)
   }
 
-
+  //信息熵计算函数
   def computeEntropy(entrySet: util.Set[ util.Map.Entry[ String, TriaFrequency ] ]): Double = {
     var totalFrequency: Double = 0.0
     var entry: util.Map.Entry[ String, TriaFrequency ] = null
-    var sentence_iter4: util.Iterator[ util.Map.Entry[ String, TriaFrequency ] ] = entrySet.iterator
-    while (sentence_iter4.hasNext) {
-      entry = sentence_iter4.next
+    var sentence_iter5: util.Iterator[ util.Map.Entry[ String, TriaFrequency ] ] = entrySet.iterator
+    while (sentence_iter5.hasNext) {
+      entry = sentence_iter5.next
       totalFrequency += entry.getValue.getValue.intValue.toDouble
     }
     var le: Double = 0.0
     var p: Double = 0.0
-    sentence_iter4 = entrySet.iterator
-    while (sentence_iter4.hasNext) {
-      val entry = sentence_iter4.next
+    sentence_iter5 = entrySet.iterator
+    while (sentence_iter5.hasNext) {
+      val entry = sentence_iter5.next
       p = entry.getValue.getValue.intValue.toDouble / totalFrequency
       le += -p * Math.log(p)
     }
     le
   }
-
+  //左熵计算函数
   def computeLeftEntropy(occur: Occurrence, pair: PairFrequency): Double = {
     val entrySet = occur.getTrieTria.prefixSearch(pair.getKey + '\u0001')
     computeEntropy(entrySet)
   }
-
+  //右熵计算函数
   def computeRightEntropy(occur: Occurrence, pair: PairFrequency): Double = {
     val entrySet = occur.getTrieTria.prefixSearch(pair.getKey + '\u0000')
     computeEntropy(entrySet)
