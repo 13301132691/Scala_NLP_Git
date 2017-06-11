@@ -1,5 +1,6 @@
 /**
-  * 本文借鉴了hanlp中的短语提取识别模块，将其中涉及到的互信息、左右熵等函数由java代码转化为scala代码
+  * 本文借鉴了hanlp中的短语提取识别模块，将其中涉及到的互信息、左右熵等函数由java代码转化为scala代码，在运行时需要加载
+  * http://search.maven.org/#search%7Cgav%7C1%7Cg%3A%22com.hankcs%22%20AND%20a%3A%22hanlp%22中的portable-1.3.4版的jar包
   **/
 package word
 
